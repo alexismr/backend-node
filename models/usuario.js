@@ -1,28 +1,25 @@
+var mongoose = require('mongoose');
+var uniqueValidator = require('mongoose-unique-validator');
+
+var Schema = mongoose.Schema;
 
 
-var _mongoose = require('mongoose');
-
-var _uniqueValidation = require('mongoose-unique-validator');
-
-var _Schema = _mongoose.Schema;
-
-
-var rolesValido ={
-    values:['ADMIN_ROLE','USUER_ROLE'],
-    message: '{VALUE} no es un rol valido'
-}
+var rolesValidos = {
+    values: ['ADMIN_ROLE', 'USER_ROLE'],
+    message: '{VALUE} no es un rol permitido'
+};
 
 
-var usuarioSchema = new _Schema({
-    nombre: {  type:String,required:[true,'el nombre es Requerido'] },
-    email: {  type:String, unique:true, required:[true,'el nombre es Requerido'] },
-    password: {  type:String, required:[true,'la contraseña es necesaria'] },
-    img: {  type:String, required:false},
-    role: {  type:String, required:true , default: 'USER_ROLE', enum: rolesValido }
+var usuarioSchema = new Schema({
+
+    nombre: { type: String, required: [true, 'El nombre es necesario'] },
+    email: { type: String, unique: true, required: [true, 'El correo es necesario'] },
+    password: { type: String, required: [true, 'La contraseña es necesaria'] },
+    img: { type: String, required: false },
+    role: { type: String, required: true, default: 'USER_ROLE', enum: rolesValidos },
+    google: { type: Boolean, required: true, default: false }
 });
 
-usuarioSchema.plugin(_uniqueValidation , { message :' {PATH} El correo debe ser único'});
+usuarioSchema.plugin(uniqueValidator, { message: '{PATH} debe de ser único' });
 
-
-
-module.exports = _mongoose.model('Usuario',usuarioSchema);
+module.exports = mongoose.model('Usuario', usuarioSchema);

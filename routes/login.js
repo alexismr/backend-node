@@ -1,69 +1,181 @@
+var express = require('express');
+var bcrypt = require('bcryptjs');
+var jwt = require('jsonwebtoken');
+
+var SEED = require('../config/config').SEED;
+
+var app = express();
+var Usuario = require('../models/usuario');
 
 
-var _express = require('express');
-var app = _express();
-// para incritar las claves 
-var _bcrypt = require('bcryptjs');
-var _Usuario = require('../models/usuario');
-var _jwt = require('jsonwebtoken');
+var GoogleAuth = require('google-auth-library');
+var auth = new GoogleAuth;
+
+const GOOGLE_CLIENT_ID = require('../config/config').GOOGLE_CLIENT_ID;
+const GOOGLE_SECRET = require('../config/config').GOOGLE_SECRET;
+
+// ==========================================
+//  Autenticación De Google
+// ==========================================
+app.post('/google', (req, res) => {
+
+    var token = req.body.token || 'XXX';
 
 
-var seed = require('../config/config').SEED;
+    var client = new auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_SECRET, '');
 
-app.post('/',(req,res)=>{
+    client.verifyIdToken(
+        token,
+        GOOGLE_CLIENT_ID,
+        // Or, if multiple clients access the backend:
+        //[CLIENT_ID_1, CLIENT_ID_2, CLIENT_ID_3],
+        function(e, login) {
 
-    var _body = req.body;
-_Usuario.findOne({email:_body.email},(err,UsuarioDB)=>{
+            if (e) {
+                return res.status(400).json({
+                    ok: true,
+                    mensaje: 'Token no válido',
+                    errors: e
+                });
+            }
 
-    if(err){
-        return res.status(500).json({
-            ok:false,
-            mensaje:'error login',
-            errors:err
-        })
-    }
-    if(!UsuarioDB){
-        return res.status(500).json({
-            ok:false,
-            mensaje:'Credenciales incorrectas -- email',
-            errors:err
-        })
-    }
 
-    if(!_bcrypt.compareSync(_body.password ,UsuarioDB.password)){
-        return  res.status(400).json({
-            ok:false,
-            message:`Credenciales incorrectas --- password`,
-            body:_body
+            var payload = login.getPayload();
+            var userid = payload['sub'];
+            // If request specified a G Suite domain:
+            //var domain = payload['hd'];
+
+            Usuario.findOne({ email: payload.email }, (err, usuario) => {
+
+                if (err) {
+                    return res.status(500).json({
+                        ok: true,
+                        mensaje: 'Error al buscar usuario - login',
+                        errors: err
+                    });
+                }
+
+                if (usuario) {
+
+                    if (usuario.google === false) {
+                        return res.status(400).json({
+                            ok: true,
+                            mensaje: 'Debe de usar su autenticación normal'
+                        });
+                    } else {
+
+                        usuario.password = ':)';
+
+                        var token = jwt.sign({ usuario: usuario }, SEED, { expiresIn: 14400 }); // 4 horas
+
+                        res.status(200).json({
+                            ok: true,
+                            usuario: usuario,
+                            token: token,
+                            id: usuario._id
+                        });
+
+                    }
+
+                    // Si el usuario no existe por correo
+                } else {
+
+                    var usuario = new Usuario();
+
+
+                    usuario.nombre = payload.name;
+                    usuario.email = payload.email;
+                    usuario.password = ':)';
+                    usuario.img = payload.picture;
+                    usuario.google = true;
+
+                    usuario.save((err, usuarioDB) => {
+
+                        if (err) {
+                            return res.status(500).json({
+                                ok: true,
+                                mensaje: 'Error al crear usuario - google',
+                                errors: err
+                            });
+                        }
+
+
+                        var token = jwt.sign({ usuario: usuarioDB }, SEED, { expiresIn: 14400 }); // 4 horas
+
+                        res.status(200).json({
+                            ok: true,
+                            usuario: usuarioDB,
+                            token: token,
+                            id: usuarioDB._id
+                        });
+
+                    });
+
+                }
+
+
+            });
+
+
         });
 
-    }
 
-    UsuarioDB.password =':)';
-// crear un token
- var token = _jwt.sign(
-     {usuario:UsuarioDB},
-     seed,
-     {expiresIn: 14400}
-    );
-
-
-    res.status(200).json({
-        token:token,
-        ok:true,
-        UsuarioDB:UsuarioDB,
-        id:UsuarioDB.id
-    });
 
 
 });
 
+// ==========================================
+//  Autenticación normal
+// ==========================================
+app.post('/', (req, res) => {
 
-  
+    var body = req.body;
+
+    Usuario.findOne({ email: body.email }, (err, usuarioDB) => {
+
+        if (err) {
+            return res.status(500).json({
+                ok: false,
+                mensaje: 'Error al buscar usuario',
+                errors: err
+            });
+        }
+
+        if (!usuarioDB) {
+            return res.status(400).json({
+                ok: false,
+                mensaje: 'Credenciales incorrectas - email',
+                errors: err
+            });
+        }
+
+        if (!bcrypt.compareSync(body.password, usuarioDB.password)) {
+            return res.status(400).json({
+                ok: false,
+                mensaje: 'Credenciales incorrectas - password',
+                errors: err
+            });
+        }
+
+        // Crear un token!!!
+        usuarioDB.password = ':)';
+
+        var token = jwt.sign({ usuario: usuarioDB }, SEED, { expiresIn: 14400 }); // 4 horas
+
+        res.status(200).json({
+            ok: true,
+            usuario: usuarioDB,
+            token: token,
+            id: usuarioDB._id
+        });
+
+    })
+
+
 });
+
 
 
 
 
 module.exports = app;
-

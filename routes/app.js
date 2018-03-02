@@ -1,16 +1,15 @@
+var express = require('express');
 
-var _express = require('express');
-
-var app = _express();
+var app = express();
 
 
-// servicios
-app.get('/',(req,resp,next) =>{
-    resp.status(200).json({
-        ok:true,
-        mensaje:'hola desde nodejs'
-    })
+app.get('/', (req, res, next) => {
+
+    res.status(200).json({
+        ok: true,
+        mensaje: 'Peticion realizada correctamente'
+    });
+
 });
-
 
 module.exports = app;
